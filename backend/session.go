@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"io"
 	"sync"
-	"time"
 
 	"github.com/emersion/go-smtp"
-	"github.com/goccy/go-json"
 	"github.com/google/uuid"
 	"github.com/roadrunner-plugins/smtp-server/handler"
 	"github.com/roadrunner-server/pool/payload"
@@ -127,7 +125,7 @@ func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
 // Rcpt handles RCPT TO command
 func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
 	if len(s.to) >= s.maxRecipients {
-		return smtp.SMTPError{
+		return &smtp.SMTPError{
 			Code:    452,
 			Message: "Too many recipients",
 		}
@@ -157,7 +155,7 @@ func (s *Session) Data(r io.Reader) error {
 	}
 
 	if n >= s.maxMessageSize {
-		return smtp.SMTPError{
+		return &smtp.SMTPError{
 			Code:    552,
 			Message: "Message too large",
 		}
@@ -206,7 +204,7 @@ func (s *Session) Data(r io.Reader) error {
 		s.payloadPool.Put(pld)
 
 		// Return temporary error to SMTP client
-		return smtp.SMTPError{
+		return &smtp.SMTPError{
 			Code:    451,
 			Message: "Temporary failure processing email",
 		}
@@ -217,7 +215,7 @@ func (s *Session) Data(r io.Reader) error {
 	// Check PHP response
 	if bytes.Equal(rsp.Context, handler.CLOSE) {
 		s.log.Debug("PHP requested connection close", zap.String("uuid", s.uuid))
-		return smtp.SMTPError{
+		return &smtp.SMTPError{
 			Code:    421,
 			Message: "Service closing connection",
 		}

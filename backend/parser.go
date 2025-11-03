@@ -275,7 +275,7 @@ func decodeContent(content []byte, encoding string) ([]byte, error) {
 
 	case "quoted-printable":
 		// Use mime.QuotedPrintableReader
-		reader := mime.BEncoding.NewDecoder().Reader(bytes.NewReader(content))
+		reader := mime.NewQuotedPrintableReader(bytes.NewReader(content))
 		decoded, err := io.ReadAll(reader)
 		if err != nil {
 			return nil, err

@@ -13,27 +13,27 @@ import (
 type Backend struct {
 	serverName string
 	hostname   string
-	
+
 	// Configuration
 	maxMessageSize int64
 	maxRecipients  int
 	includeRaw     bool
-	
+
 	// Attachment handling
 	attachmentMode string
 	tempDir        string
-	
+
 	// PHP worker pool executor
 	phpExec func(*payload.Payload) (*payload.Payload, error)
-	
+
 	// Connection tracking for graceful shutdown
 	connections *sync.Map // uuid -> *Session
-	
+
 	// Resource pools
 	emailEventPool *sync.Pool
 	payloadPool    *sync.Pool
 	bufferPool     *sync.Pool
-	
+
 	// Logger
 	log *zap.Logger
 }
@@ -93,14 +93,14 @@ func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 
 // Login handles SMTP authentication (always accepts for profiling)
 // Returns nil (success) regardless of credentials
-func (b *Backend) Login(_ *smtp.ConnectionState, username, password string) (smtp.Session, error) {
+func (b *Backend) Login(state *smtp.ConnectionState, username, password string) (smtp.Session, error) {
 	// In profiler mode, we accept all credentials
 	// The session will capture these for debugging
 	b.log.Debug("auth attempt (profiler mode - always accepts)",
 		zap.String("username", username),
 		zap.String("server", b.serverName),
 	)
-	
+
 	return nil, nil // Accept authentication
 }
 
