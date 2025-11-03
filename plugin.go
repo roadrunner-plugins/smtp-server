@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
+	"github.com/roadrunner-plugins/smtp-server/backend"
+	"github.com/roadrunner-plugins/smtp-server/handler"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/goridge/v3/pkg/frame"
 	"github.com/roadrunner-server/pool/payload"
@@ -16,8 +18,6 @@ import (
 	staticPool "github.com/roadrunner-server/pool/pool/static_pool"
 	"github.com/roadrunner-server/pool/state/process"
 	"github.com/roadrunner-server/pool/worker"
-	"github.com/roadrunner-server/smtp/v5/backend"
-	"github.com/roadrunner-server/smtp/v5/handler"
 	"go.uber.org/zap"
 )
 
@@ -57,47 +57,47 @@ type Plugin struct {
 	mu  sync.RWMutex
 	cfg *Config
 	log *zap.Logger
-	
+
 	// PHP worker pool
 	server Server
 	wPool  Pool
-	
+
 	// SMTP servers (one per configuration)
 	smtpServers sync.Map // serverName -> *smtp.Server
-	
+
 	// Connection tracking for graceful shutdown
 	connections sync.Map // uuid -> *backend.Session
-	
+
 	// Resource pools for performance
 	emailEventPool sync.Pool
 	payloadPool    sync.Pool
 	bufferPool     sync.Pool
-	
+
 	// Temp file cleanup
-	cleanupTicker  *time.Ticker
-	cleanupStop    chan struct{}
+	cleanupTicker *time.Ticker
+	cleanupStop   chan struct{}
 }
 
 // Init initializes the plugin with configuration
 func (p *Plugin) Init(log Logger, cfg Configurer, server Server) error {
 	const op = errors.Op("smtp_plugin_init")
-	
+
 	if !cfg.Has(pluginName) {
 		return errors.E(op, errors.Disabled)
 	}
-	
+
 	// Parse configuration
 	p.cfg = &Config{}
 	err := cfg.UnmarshalKey(pluginName, p.cfg)
 	if err != nil {
 		return errors.E(op, err)
 	}
-	
+
 	err = p.cfg.InitDefault()
 	if err != nil {
 		return errors.E(op, err)
 	}
-	
+
 	// Initialize resource pools
 	p.emailEventPool = sync.Pool{
 		New: func() any {
@@ -112,13 +112,13 @@ func (p *Plugin) Init(log Logger, cfg Configurer, server Server) error {
 			}
 		},
 	}
-	
+
 	p.payloadPool = sync.Pool{
 		New: func() any {
 			return &payload.Payload{}
 		},
 	}
-	
+
 	p.bufferPool = sync.Pool{
 		New: func() any {
 			buf := new(bytes.Buffer)
@@ -126,17 +126,17 @@ func (p *Plugin) Init(log Logger, cfg Configurer, server Server) error {
 			return buf
 		},
 	}
-	
+
 	p.log = log.NamedLogger(pluginName)
 	p.server = server
-	
+
 	return nil
 }
 
 // Serve starts the SMTP servers
 func (p *Plugin) Serve() chan error {
 	errCh := make(chan error, 1)
-	
+
 	// Create PHP worker pool
 	wPool, err := p.server.NewPool(context.Background(), p.cfg.Pool, map[string]string{RrMode: pluginName}, nil)
 	if err != nil {
@@ -144,17 +144,17 @@ func (p *Plugin) Serve() chan error {
 		return errCh
 	}
 	p.wPool = wPool
-	
+
 	// Start temp file cleanup if using tempfile mode
 	if p.cfg.AttachmentStorage.Mode == "tempfile" {
 		p.startTempFileCleanup()
 	}
-	
+
 	// Start SMTP server for each configured server
 	for serverName, serverCfg := range p.cfg.Servers {
 		go p.serveServer(serverName, serverCfg, errCh)
 	}
-	
+
 	return errCh
 }
 
@@ -176,7 +176,7 @@ func (p *Plugin) serveServer(serverName string, cfg *ServerConfig, errCh chan er
 		&p.bufferPool,
 		p.log,
 	)
-	
+
 	// Create SMTP server
 	s := smtp.NewServer(be)
 	s.Addr = cfg.Addr
@@ -186,15 +186,15 @@ func (p *Plugin) serveServer(serverName string, cfg *ServerConfig, errCh chan er
 	s.MaxMessageBytes = int(cfg.MaxMessageSize)
 	s.MaxRecipients = cfg.MaxRecipients
 	s.AllowInsecureAuth = true // Dev tool - allow plaintext auth
-	
+
 	p.smtpServers.Store(serverName, s)
-	
+
 	p.log.Info("starting SMTP server",
 		zap.String("server", serverName),
 		zap.String("addr", cfg.Addr),
 		zap.String("hostname", cfg.Hostname),
 	)
-	
+
 	// Start listening (blocking)
 	err := s.ListenAndServe()
 	if err != nil {
@@ -207,9 +207,9 @@ func (p *Plugin) serveServer(serverName string, cfg *ServerConfig, errCh chan er
 func (p *Plugin) Stop(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	doneCh := make(chan struct{}, 1)
-	
+
 	go func() {
 		// Stop temp file cleanup
 		if p.cleanupStop != nil {
@@ -218,7 +218,7 @@ func (p *Plugin) Stop(ctx context.Context) error {
 				p.cleanupTicker.Stop()
 			}
 		}
-		
+
 		// Close all SMTP servers
 		p.smtpServers.Range(func(key, value any) bool {
 			srv := value.(*smtp.Server)
@@ -228,15 +228,15 @@ func (p *Plugin) Stop(ctx context.Context) error {
 			}
 			return true
 		})
-		
+
 		// Destroy worker pool
 		if p.wPool != nil {
 			p.wPool.Destroy(ctx)
 		}
-		
+
 		doneCh <- struct{}{}
 	}()
-	
+
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -250,15 +250,15 @@ func (p *Plugin) Stop(ctx context.Context) error {
 func (p *Plugin) Reset() error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	const op = errors.Op("smtp_reset")
 	p.log.Info("reset signal received")
-	
+
 	err := p.wPool.Reset(context.Background())
 	if err != nil {
 		return errors.E(op, err)
 	}
-	
+
 	p.log.Info("plugin was successfully reset")
 	return nil
 }
@@ -268,9 +268,9 @@ func (p *Plugin) Workers() []*process.State {
 	p.mu.RLock()
 	wrk := p.wPool.Workers()
 	p.mu.RUnlock()
-	
+
 	ps := make([]*process.State, len(wrk))
-	
+
 	for i := range wrk {
 		st, err := process.WorkerProcessState(wrk[i])
 		if err != nil {
@@ -279,7 +279,7 @@ func (p *Plugin) Workers() []*process.State {
 		}
 		ps[i] = st
 	}
-	
+
 	return ps
 }
 
@@ -297,25 +297,25 @@ func (p *Plugin) RPC() any {
 func (p *Plugin) Exec(pld *payload.Payload) (*payload.Payload, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	result, err := p.wPool.Exec(context.Background(), pld, nil)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	select {
 	case pldResult := <-result:
 		if pldResult.Error() != nil {
 			return nil, pldResult.Error()
 		}
-		
+
 		// Check for streaming (not supported)
 		if pldResult.Payload().Flags&frame.STREAM != 0 {
 			return nil, errors.Str("streaming is not supported")
 		}
-		
+
 		return pldResult.Payload(), nil
-		
+
 	default:
 		return nil, errors.Str("worker empty response")
 	}
@@ -325,7 +325,7 @@ func (p *Plugin) Exec(pld *payload.Payload) (*payload.Payload, error) {
 func (p *Plugin) startTempFileCleanup() {
 	p.cleanupStop = make(chan struct{})
 	p.cleanupTicker = time.NewTicker(p.cfg.AttachmentStorage.CleanupAfter / 2)
-	
+
 	go func() {
 		for {
 			select {
@@ -342,7 +342,7 @@ func (p *Plugin) startTempFileCleanup() {
 func (p *Plugin) cleanupTempFiles() {
 	tempDir := p.cfg.AttachmentStorage.TempDir
 	maxAge := p.cfg.AttachmentStorage.CleanupAfter
-	
+
 	entries, err := os.ReadDir(tempDir)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -350,20 +350,20 @@ func (p *Plugin) cleanupTempFiles() {
 		}
 		return
 	}
-	
+
 	now := time.Now()
 	cleaned := 0
-	
+
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
 		}
-		
+
 		info, err := entry.Info()
 		if err != nil {
 			continue
 		}
-		
+
 		if now.Sub(info.ModTime()) > maxAge {
 			path := fmt.Sprintf("%s/%s", tempDir, entry.Name())
 			err := os.Remove(path)
@@ -374,7 +374,7 @@ func (p *Plugin) cleanupTempFiles() {
 			}
 		}
 	}
-	
+
 	if cleaned > 0 {
 		p.log.Debug("cleaned temp attachment files", zap.Int("count", cleaned))
 	}

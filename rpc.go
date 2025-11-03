@@ -1,7 +1,7 @@
 package smtp
 
 import (
-	"github.com/roadrunner-server/smtp/v5/handler"
+	"github.com/roadrunner-plugins/smtp-server/handler"
 )
 
 // rpc provides RPC methods callable from PHP
@@ -13,7 +13,7 @@ type rpc struct {
 type Stats struct {
 	// ActiveConnections: Number of active SMTP sessions
 	ActiveConnections int `json:"active_connections"`
-	
+
 	// Servers: List of running SMTP servers
 	Servers []string `json:"servers"`
 }
@@ -27,14 +27,14 @@ func (r *rpc) GetStats(_ bool, stats *Stats) error {
 		return true
 	})
 	stats.ActiveConnections = count
-	
+
 	// List server names
 	servers := make([]string, 0, len(r.p.cfg.Servers))
 	for name := range r.p.cfg.Servers {
 		servers = append(servers, name)
 	}
 	stats.Servers = servers
-	
+
 	return nil
 }
 
@@ -49,7 +49,7 @@ func (r *rpc) CloseSession(uuid string, ret *bool) error {
 		*ret = true
 		return nil
 	}
-	
+
 	*ret = false
 	return nil
 }
