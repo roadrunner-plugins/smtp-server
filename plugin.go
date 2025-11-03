@@ -183,7 +183,7 @@ func (p *Plugin) serveServer(serverName string, cfg *ServerConfig, errCh chan er
 	s.Domain = cfg.Hostname
 	s.ReadTimeout = cfg.ReadTimeout
 	s.WriteTimeout = cfg.WriteTimeout
-	s.MaxMessageBytes = int(cfg.MaxMessageSize)
+	s.MaxMessageBytes = cfg.MaxMessageSize
 	s.MaxRecipients = cfg.MaxRecipients
 	s.AllowInsecureAuth = true // Dev tool - allow plaintext auth
 
