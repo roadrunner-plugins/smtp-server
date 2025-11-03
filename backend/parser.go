@@ -7,6 +7,7 @@ import (
 	"io"
 	"mime"
 	"mime/multipart"
+	"mime/quotedprintable"
 	"net/mail"
 	"os"
 	"path/filepath"
@@ -274,8 +275,8 @@ func decodeContent(content []byte, encoding string) ([]byte, error) {
 		return decoded[:n], nil
 
 	case "quoted-printable":
-		// Use mime.QuotedPrintableReader
-		reader := mime.NewQuotedPrintableReader(bytes.NewReader(content))
+		// Use quotedprintable.NewReader from mime/quotedprintable package
+		reader := quotedprintable.NewReader(bytes.NewReader(content))
 		decoded, err := io.ReadAll(reader)
 		if err != nil {
 			return nil, err

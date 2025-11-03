@@ -91,19 +91,6 @@ func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 	), nil
 }
 
-// Login handles SMTP authentication (always accepts for profiling)
-// Returns nil (success) regardless of credentials
-func (b *Backend) Login(state *smtp.ConnectionState, username, password string) (smtp.Session, error) {
-	// In profiler mode, we accept all credentials
-	// The session will capture these for debugging
-	b.log.Debug("auth attempt (profiler mode - always accepts)",
-		zap.String("username", username),
-		zap.String("server", b.serverName),
-	)
-
-	return nil, nil // Accept authentication
-}
-
 // AnonymousLogin handles connections without authentication
 // Always accepts in profiler mode
 func (b *Backend) AnonymousLogin(c *smtp.Conn) (smtp.Session, error) {
