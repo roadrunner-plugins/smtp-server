@@ -5,7 +5,6 @@ import (
 	"net"
 	"sync"
 
-	"github.com/emersion/go-smtp"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/pool/payload"
 	"github.com/roadrunner-server/pool/pool"
@@ -112,10 +111,13 @@ func (p *Plugin) Init(log Logger, cfg Configurer, server Server) error {
 
 // Serve starts the SMTP server
 func (p *Plugin) Serve() chan error {
-	errCh := make(chan error, 1)
+	errCh := make(chan error, 2)
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	var err error
-	p.wPool, err = p.server.NewPool(context.Background(), p.cfg.Pool, map[string]string{RrMode: PluginName}, nil)
+	p.wPool, err = p.server.NewPool(context.Background(), p.cfg.Pool, map[string]string{RrMode: PluginName}, p.log)
 	if err != nil {
 		errCh <- err
 		return errCh
@@ -217,42 +219,48 @@ func (p *Plugin) Stop(ctx context.Context) error {
 }
 
 // Reset resets the worker pool
+
+// Reset destroys the old pool and replaces it with new one, waiting for old pool to die
 func (p *Plugin) Reset() error {
+	const op = errors.Op("http_plugin_reset")
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	const op = errors.Op("smtp_reset")
+	p.log.Info("reset signal was received")
 
-	if p.wPool == nil {
+	if p.pool == nil {
+		p.log.Info("pool is nil, nothing to reset")
 		return nil
 	}
 
-	p.log.Info("resetting SMTP plugin workers")
-
-	err := p.wPool.Reset(context.Background())
+	err := p.pool.Reset(context.Background())
 	if err != nil {
 		return errors.E(op, err)
 	}
 
-	p.log.Info("SMTP plugin workers reset completed")
+	p.log.Info("plugin was successfully reset")
 	return nil
 }
 
+// Workers returns slice with the process states for the workers
 func (p *Plugin) Workers() []*process.State {
 	p.mu.RLock()
-	wrk := p.wPool.Workers()
-	p.mu.RUnlock()
+	defer p.mu.RUnlock()
 
-	ps := make([]*process.State, len(wrk))
+	if p.pool == nil {
+		return nil
+	}
 
-	for i := range wrk {
-		st, err := process.WorkerProcessState(wrk[i])
+	workers := p.pool.Workers()
+
+	ps := make([]*process.State, 0, len(workers))
+	for i := range workers {
+		state, err := process.WorkerProcessState(workers[i])
 		if err != nil {
-			p.log.Error("jobs workers state", zap.Error(err))
 			return nil
 		}
-
-		ps[i] = st
+		ps = append(ps, state)
 	}
 
 	return ps
@@ -261,35 +269,4 @@ func (p *Plugin) Workers() []*process.State {
 // Name returns plugin name for RoadRunner
 func (p *Plugin) Name() string {
 	return PluginName
-}
-
-// RPC returns the RPC interface
-func (p *Plugin) RPC() any {
-	return &rpc{
-		p: p,
-	}
-}
-
-// AddWorker adds a new worker to the pool
-func (p *Plugin) AddWorker() error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	if p.wPool == nil {
-		return errors.Str("worker pool not initialized")
-	}
-
-	return p.wPool.AddWorker()
-}
-
-// RemoveWorker removes a worker from the pool
-func (p *Plugin) RemoveWorker(ctx context.Context) error {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	if p.wPool == nil {
-		return errors.Str("worker pool not initialized")
-	}
-
-	return p.wPool.RemoveWorker(ctx)
 }
