@@ -116,7 +116,7 @@ func (p *Plugin) Serve() chan error {
 
 	// 1. Create worker pool (same pattern as TCP plugin)
 	var err error
-	p.wPool, err = p.server.NewPool(context.Background(), p.cfg.Pool, map[string]string{RrMode: PluginName}, nil)
+	p.server.NewPool(context.Background(), p.cfg.Pool, map[string]string{RrMode: PluginName}, p.log)
 	if err != nil {
 		errCh <- err
 		return errCh
