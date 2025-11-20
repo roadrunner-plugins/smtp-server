@@ -526,7 +526,7 @@ smtp/
 ## Dependencies Update (go.mod)
 
 ```go
-module github.com/roadrunner-plugins/smtp
+module github.com/roadrunner-plugins/smtp-server
 
 go 1.23
 

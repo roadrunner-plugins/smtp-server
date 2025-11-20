@@ -5,7 +5,7 @@ category: network
 dependencies:
   - logger
   - server
-docsUrl: https://github.com/roadrunner-plugins/smtp
+docsUrl: https://github.com/roadrunner-plugins/smtp-server
 author:
   name: RoadRunner Team
   url: https://github.com/roadrunner-plugins

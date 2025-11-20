@@ -19,7 +19,7 @@ smtp/
 ### 1. go.mod - Dependencies
 
 ```go
-module github.com/roadrunner-plugins/smtp
+module github.com/roadrunner-plugins/smtp-server
 
 go 1.23
 
@@ -224,7 +224,7 @@ category: network
 dependencies:
   - logger
   - server
-docsUrl: https://github.com/roadrunner-plugins/smtp
+docsUrl: https://github.com/roadrunner-plugins/smtp-server
 author:
   name: RoadRunner Team
   url: https://github.com/roadrunner-plugins
@@ -280,7 +280,7 @@ After this step:
 
 ```bash
 # Initialize module
-go mod init github.com/roadrunner-plugins/smtp
+go mod init github.com/roadrunner-plugins/smtp-server
 
 # Download dependencies
 go mod tidy
