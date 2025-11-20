@@ -5,6 +5,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/emersion/go-smtp"
 	"github.com/roadrunner-server/errors"
 	"github.com/roadrunner-server/pool/payload"
 	"github.com/roadrunner-server/pool/pool"
