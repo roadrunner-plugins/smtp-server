@@ -169,6 +169,9 @@ func (p *Plugin) Serve() chan error {
 		}
 	}()
 
+	// 6. Start temp file cleanup routine
+	p.startCleanupRoutine(context.Background())
+
 	return errCh
 }
 

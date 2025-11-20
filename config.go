@@ -21,6 +21,9 @@ type Config struct {
 
 	// Worker pool configuration
 	Pool *pool.Config `mapstructure:"pool"`
+
+	// Include full raw RFC822 message in JSON (default: false)
+	IncludeRaw bool `mapstructure:"include_raw"`
 }
 
 // AttachmentConfig configures how attachments are stored
