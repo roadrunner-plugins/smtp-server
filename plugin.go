@@ -114,14 +114,8 @@ func (p *Plugin) Init(log Logger, cfg Configurer, server Server) error {
 func (p *Plugin) Serve() chan error {
 	errCh := make(chan error, 1)
 
-	// 1. Create worker pool
 	var err error
-	p.wPool, err = p.server.NewPool(
-		context.Background(),
-		p.cfg.Pool,
-		map[string]string{RrMode: PluginName},
-		p.log,
-	)
+	p.wPool, err = p.server.NewPool(context.Background(), p.cfg.Pool, map[string]string{RrMode: pluginName}, nil)
 	if err != nil {
 		errCh <- err
 		return errCh
