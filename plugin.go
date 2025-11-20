@@ -114,36 +114,8 @@ func (p *Plugin) Init(log Logger, cfg Configurer, server Server) error {
 func (p *Plugin) Serve() chan error {
 	errCh := make(chan error, 1)
 
-	// 1. Create worker pool (same pattern as TCP plugin)
-	backend := NewBackend(p)
-
-	p.smtpServer = smtp.NewServer(backend)
-	p.smtpServer.Addr = p.cfg.Addr
-	p.smtpServer.Domain = p.cfg.Hostname
-	p.smtpServer.ReadTimeout = p.cfg.ReadTimeout
-	p.smtpServer.WriteTimeout = p.cfg.WriteTimeout
-	p.smtpServer.MaxMessageBytes = p.cfg.MaxMessageSize
-	p.smtpServer.MaxRecipients = 100
-	p.smtpServer.AllowInsecureAuth = true
-
-	// 2. Создаём listener
+	// 1. Create worker pool
 	var err error
-	p.listener, err = net.Listen("tcp", p.cfg.Addr)
-	if err != nil {
-		errCh <- errors.E(errors.Op("smtp_listen"), err)
-		return errCh
-	}
-
-	p.log.Info("SMTP listener created", zap.String("addr", p.cfg.Addr))
-
-	go func() {
-		p.log.Info("SMTP server starting", zap.String("addr", p.cfg.Addr))
-		if err := p.smtpServer.Serve(p.listener); err != nil {
-			p.log.Error("SMTP server error", zap.Error(err))
-			errCh <- err
-		}
-	}()
-
 	p.wPool, err = p.server.NewPool(
 		context.Background(),
 		p.cfg.Pool,
@@ -159,6 +131,43 @@ func (p *Plugin) Serve() chan error {
 		zap.Int("num_workers", len(p.wPool.Workers())),
 	)
 
+	// 2. Create SMTP backend
+	backend := NewBackend(p)
+
+	// 3. Create SMTP server
+	p.smtpServer = smtp.NewServer(backend)
+	p.smtpServer.Addr = p.cfg.Addr
+	p.smtpServer.Domain = p.cfg.Hostname
+	p.smtpServer.ReadTimeout = p.cfg.ReadTimeout
+	p.smtpServer.WriteTimeout = p.cfg.WriteTimeout
+	p.smtpServer.MaxMessageBytes = p.cfg.MaxMessageSize
+	p.smtpServer.MaxRecipients = 100
+	p.smtpServer.AllowInsecureAuth = true
+
+	p.log.Info("SMTP server configured",
+		zap.String("addr", p.smtpServer.Addr),
+		zap.String("domain", p.smtpServer.Domain),
+	)
+
+	// 4. Create listener
+	p.listener, err = net.Listen("tcp", p.cfg.Addr)
+	if err != nil {
+		errCh <- errors.E(errors.Op("smtp_listen"), err)
+		return errCh
+	}
+
+	p.log.Info("SMTP listener created", zap.String("addr", p.cfg.Addr))
+
+	// 5. Start SMTP server in goroutine
+	go func() {
+		p.log.Info("SMTP server starting", zap.String("addr", p.cfg.Addr))
+		if err := p.smtpServer.Serve(p.listener); err != nil {
+			p.log.Error("SMTP server error", zap.Error(err))
+			errCh <- err
+		}
+	}()
+
+	// 6. Start temp file cleanup routine
 	p.startCleanupRoutine(context.Background())
 
 	return errCh
