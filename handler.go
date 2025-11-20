@@ -14,8 +14,8 @@ import (
 func (s *Session) sendToWorker(emailData *EmailData) (string, error) {
 	s.log.Debug("sendToWorker called",
 		zap.String("uuid", s.uuid),
-		zap.String("from", emailData.From),
-		zap.Strings("to", emailData.To),
+		zap.String("from", emailData.Envelope.From),
+		zap.Strings("to", emailData.Envelope.To),
 	)
 
 	// 1. Marshal email data to JSON
