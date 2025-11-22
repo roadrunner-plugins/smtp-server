@@ -79,17 +79,10 @@ func (p *Plugin) Init(log Logger, cfg Configurer) error {
 
 // Serve starts the SMTP server
 func (p *Plugin) Serve() chan error {
-	const op = errors.Op("smtp_serve")
 	errCh := make(chan error, 2)
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
-	// Verify Jobs RPC is available
-	if p.jobsRPC == nil {
-		errCh <- errors.E(op, errors.Str("jobs plugin not available, check that jobs plugin is enabled"))
-		return errCh
-	}
 
 	// 1. Create SMTP backend
 	backend := NewBackend(p)
