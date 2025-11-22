@@ -1,14 +1,14 @@
 name: smtp
-owner: roadrunner-plugins
+owner: buggregator
 description: "SMTP server plugin for debugging and profiling email traffic in development environments"
 category: network
 dependencies:
   - logger
   - server
-docsUrl: https://github.com/roadrunner-plugins/smtp-server
+docsUrl: https://github.com/buggregator/smtp-server
 author:
   name: RoadRunner Team
-  url: https://github.com/roadrunner-plugins
+  url: https://github.com/buggregator
 license: MIT
 keywords:
   - smtp

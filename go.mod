@@ -1,4 +1,4 @@
-module github.com/roadrunner-plugins/smtp-server
+module github.com/buggregator/smtp-server
 
 go 1.24
 
