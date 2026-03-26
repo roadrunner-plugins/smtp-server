@@ -100,13 +100,20 @@ func (s *Session) Data(r io.Reader) error {
 	}
 
 	// Convert attachments
+	cfg := s.backend.plugin.cfg
 	attachments := make([]AttachmentData, 0, len(parsedMessage.Attachments))
 	for _, att := range parsedMessage.Attachments {
-		attachments = append(attachments, AttachmentData{
+		ad := AttachmentData{
 			Filename:    att.Filename,
 			ContentType: att.Type,
-			Content:     att.Content,
-		})
+			Size:        att.Size,
+		}
+		if cfg.AttachmentStorage.Mode == "tempfile" {
+			ad.Path = att.Content
+		} else {
+			ad.Content = att.Content
+		}
+		attachments = append(attachments, ad)
 	}
 
 	emailData := &EmailData{
@@ -124,10 +131,8 @@ func (s *Session) Data(r io.Reader) error {
 		},
 		Auth: authData,
 		Message: MessageData{
-			Id: parsedMessage.ID,
-			Headers: map[string][]string{
-				"Subject": {parsedMessage.Subject},
-			},
+			Id:       parsedMessage.ID,
+			Headers:  parsedMessage.Headers,
 			Body:     parsedMessage.TextBody,
 			HTMLBody: parsedMessage.HTMLBody,
 			Raw:      parsedMessage.Raw,

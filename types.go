@@ -62,14 +62,16 @@ type Attachment struct {
 	Filename  string  `json:"filename"`
 	Content   string  `json:"content"`
 	Type      string  `json:"type"`
+	Size      int64   `json:"size"`
 	ContentID *string `json:"contentId"`
 }
 
 // ParsedMessage represents the structure expected by PHP Parser
 type ParsedMessage struct {
-	ID            *string        `json:"id"`
-	Raw           string         `json:"raw"`
-	Sender        []EmailAddress `json:"sender"`
+	ID            *string             `json:"id"`
+	Raw           string              `json:"raw"`
+	Headers       map[string][]string `json:"headers"`
+	Sender        []EmailAddress      `json:"sender"`
 	Recipients    []EmailAddress `json:"recipients"`
 	CCs           []EmailAddress `json:"ccs"`
 	Subject       string         `json:"subject"`

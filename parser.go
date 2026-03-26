@@ -24,8 +24,15 @@ func (s *Session) parseEmail(rawData []byte) (*ParsedMessage, error) {
 		return nil, err
 	}
 
+	// Capture all headers
+	headers := make(map[string][]string, len(msg.Header))
+	for k, v := range msg.Header {
+		headers[k] = v
+	}
+
 	parsed := &ParsedMessage{
 		Raw:           string(rawData),
+		Headers:       headers,
 		Sender:        make([]EmailAddress, 0),
 		Recipients:    make([]EmailAddress, 0),
 		CCs:           make([]EmailAddress, 0),
@@ -133,8 +140,31 @@ func (s *Session) processPartParsed(part *multipart.Part, parsed *ParsedMessage)
 		return s.processAttachmentParsed(part, parsed)
 	}
 
+	mediaType, params, _ := mime.ParseMediaType(contentType)
+
+	// Handle nested multipart (e.g., multipart/alternative inside multipart/mixed)
+	if strings.HasPrefix(mediaType, "multipart/") {
+		boundary := params["boundary"]
+		if boundary != "" {
+			mr := multipart.NewReader(part, boundary)
+			for {
+				nestedPart, err := mr.NextPart()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					s.log.Error("nested multipart parse error", zap.Error(err))
+					continue
+				}
+				if err := s.processPartParsed(nestedPart, parsed); err != nil {
+					s.log.Error("nested process part error", zap.Error(err))
+				}
+			}
+		}
+		return nil
+	}
+
 	// This is body content
-	mediaType, _, _ := mime.ParseMediaType(contentType)
 	if strings.HasPrefix(mediaType, "text/plain") ||
 		strings.HasPrefix(mediaType, "text/html") ||
 		contentType == "" {
@@ -193,7 +223,8 @@ func (s *Session) processAttachmentParsed(part *multipart.Part, parsed *ParsedMe
 	// Decode if base64
 	encoding := part.Header.Get("Content-Transfer-Encoding")
 	if strings.EqualFold(encoding, "base64") {
-		decoded, err := base64.StdEncoding.DecodeString(string(content))
+		cleaned := strings.NewReplacer("\r", "", "\n", "", " ", "").Replace(string(content))
+		decoded, err := base64.StdEncoding.DecodeString(cleaned)
 		if err == nil {
 			content = decoded
 		}
@@ -202,6 +233,7 @@ func (s *Session) processAttachmentParsed(part *multipart.Part, parsed *ParsedMe
 	attachment := Attachment{
 		Filename: filename,
 		Type:     contentType,
+		Size:     int64(len(content)),
 	}
 
 	// Set ContentID if present
@@ -257,7 +289,8 @@ func (s *Session) saveTempFile(content []byte, filename string) (string, error) 
 func (s *Session) decodeContent(data []byte, encoding string) []byte {
 	switch strings.ToLower(encoding) {
 	case "base64":
-		decoded, err := base64.StdEncoding.DecodeString(string(data))
+		cleaned := strings.NewReplacer("\r", "", "\n", "", " ", "").Replace(string(data))
+		decoded, err := base64.StdEncoding.DecodeString(cleaned)
 		if err != nil {
 			return data
 		}
