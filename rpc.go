@@ -30,12 +30,13 @@ func (r *rpc) CloseConnection(uuid string, success *bool) error {
 
 	session := value.(*Session)
 
-	// Close underlying connection
+	// Mark session as closing (Logout will handle map cleanup)
+	session.shouldClose = true
+
+	// Close underlying connection — triggers Logout() which deletes from map
 	if session.conn != nil && session.conn.Conn() != nil {
 		_ = session.conn.Conn().Close()
 	}
-
-	r.p.connections.Delete(uuid)
 	*success = true
 
 	return nil

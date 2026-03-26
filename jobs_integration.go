@@ -3,6 +3,7 @@ package smtp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/roadrunner-server/api/v4/plugins/v4/jobs"
@@ -112,8 +113,11 @@ func (j *Job) UpdatePriority(p int64) {
 }
 
 // emailToJobMessage converts EmailData to a jobs.Message for the Jobs plugin
-func emailToJobMessage(email *EmailData, cfg *JobsConfig) jobs.Message {
-	payload, _ := json.Marshal(email)
+func emailToJobMessage(email *EmailData, cfg *JobsConfig) (jobs.Message, error) {
+	payload, err := json.Marshal(email)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal email data: %w", err)
+	}
 
 	// Generate a unique job ID
 	jobID := uuid.NewString()
@@ -132,5 +136,5 @@ func emailToJobMessage(email *EmailData, cfg *JobsConfig) jobs.Message {
 			Delay:    cfg.Delay,
 			AutoAck:  cfg.AutoAck,
 		},
-	}
+	}, nil
 }

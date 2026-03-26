@@ -41,6 +41,9 @@ type Plugin struct {
 	// SMTP server components
 	smtpServer *smtp.Server
 	listener   net.Listener
+
+	// Cleanup routine cancellation
+	cleanupCancel context.CancelFunc
 }
 
 // Init initializes the plugin with configuration and logger
@@ -128,7 +131,9 @@ func (p *Plugin) Serve() chan error {
 	}()
 
 	// 5. Start temp file cleanup routine
-	p.startCleanupRoutine(context.Background())
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	p.cleanupCancel = cleanupCancel
+	p.startCleanupRoutine(cleanupCtx)
 
 	return errCh
 }
@@ -143,19 +148,28 @@ func (p *Plugin) Stop(ctx context.Context) error {
 		p.mu.Lock()
 		defer p.mu.Unlock()
 
-		// 1. Close listener (stops accepting new connections)
+		// 1. Stop cleanup routine
+		if p.cleanupCancel != nil {
+			p.cleanupCancel()
+		}
+
+		// 2. Close listener (stops accepting new connections)
 		if p.listener != nil {
 			_ = p.listener.Close()
 		}
 
-		// 2. Close SMTP server
+		// 3. Close SMTP server
 		if p.smtpServer != nil {
 			_ = p.smtpServer.Close()
 		}
 
-		// 3. Close all tracked connections
+		// 4. Close all tracked connections
 		p.connections.Range(func(key, value any) bool {
-			// Sessions will be cleaned up by Logout()
+			session := value.(*Session)
+			if session.conn != nil && session.conn.Conn() != nil {
+				_ = session.conn.Conn().Close()
+			}
+			p.connections.Delete(key)
 			return true
 		})
 
@@ -201,10 +215,13 @@ func (p *Plugin) pushToJobs(email *EmailData) error {
 	}
 
 	// Convert to domain model
-	msg := emailToJobMessage(email, &p.cfg.Jobs)
+	msg, err := emailToJobMessage(email, &p.cfg.Jobs)
+	if err != nil {
+		return errors.E(op, err)
+	}
 
 	// Push directly to Jobs plugin
-	err := p.jobs.Push(context.Background(), msg)
+	err = p.jobs.Push(context.Background(), msg)
 	if err != nil {
 		return errors.E(op, err)
 	}

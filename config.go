@@ -50,8 +50,6 @@ func (c *Config) InitDefaults() error {
 		c.Hostname = "localhost"
 	}
 
-	c.IncludeRaw = true
-
 	if c.ReadTimeout == 0 {
 		c.ReadTimeout = 60 * time.Second
 	}
